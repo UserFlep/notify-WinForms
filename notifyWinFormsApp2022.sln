@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31112.23
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "notifyWinFormsApp2022", "notifyWinFormsApp2022\notifyWinFormsApp2022.csproj", "{C4F023EA-800C-44D0-9238-179A3093FD3E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C4F023EA-800C-44D0-9238-179A3093FD3E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4F023EA-800C-44D0-9238-179A3093FD3E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4F023EA-800C-44D0-9238-179A3093FD3E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4F023EA-800C-44D0-9238-179A3093FD3E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {CE465562-56FC-49D7-930D-5E40C142F8E0}
+	EndGlobalSection
+EndGlobal
