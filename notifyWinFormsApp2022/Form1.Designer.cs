@@ -45,6 +45,7 @@ namespace notifyWinFormsApp2022
             this.txtBoxDBName = new System.Windows.Forms.TextBox();
             this.lblTableName = new System.Windows.Forms.Label();
             this.txtBoxTableName = new System.Windows.Forms.TextBox();
+            this.lblStatus = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.dgvData)).BeginInit();
             this.SuspendLayout();
             // 
@@ -152,6 +153,7 @@ namespace notifyWinFormsApp2022
             // btnStop
             // 
             this.btnStop.BackColor = System.Drawing.Color.LightSalmon;
+            this.btnStop.Enabled = false;
             this.btnStop.Font = new System.Drawing.Font("Segoe UI", 15.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
             this.btnStop.Location = new System.Drawing.Point(523, 41);
             this.btnStop.Name = "btnStop";
@@ -159,6 +161,7 @@ namespace notifyWinFormsApp2022
             this.btnStop.TabIndex = 11;
             this.btnStop.Text = "Стоп";
             this.btnStop.UseVisualStyleBackColor = false;
+            this.btnStop.Click += new System.EventHandler(this.btnStop_Click);
             // 
             // lblDBName
             // 
@@ -194,11 +197,22 @@ namespace notifyWinFormsApp2022
             this.txtBoxTableName.TabIndex = 14;
             this.txtBoxTableName.Text = "datas";
             // 
+            // lblStatus
+            // 
+            this.lblStatus.AutoSize = true;
+            this.lblStatus.ForeColor = System.Drawing.Color.Red;
+            this.lblStatus.Location = new System.Drawing.Point(581, 161);
+            this.lblStatus.Name = "lblStatus";
+            this.lblStatus.Size = new System.Drawing.Size(71, 15);
+            this.lblStatus.TabIndex = 16;
+            this.lblStatus.Text = "Отключено";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(7F, 15F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(664, 481);
+            this.Controls.Add(this.lblStatus);
             this.Controls.Add(this.lblTableName);
             this.Controls.Add(this.txtBoxTableName);
             this.Controls.Add(this.lblDBName);
@@ -218,6 +232,7 @@ namespace notifyWinFormsApp2022
             this.Name = "Form1";
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterParent;
             this.Text = "Form1";
+            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.Form1_FormClosed);
             ((System.ComponentModel.ISupportInitialize)(this.dgvData)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -243,6 +258,7 @@ namespace notifyWinFormsApp2022
         private System.Windows.Forms.TextBox txtBoxDBName;
         private System.Windows.Forms.Label lblTableName;
         private System.Windows.Forms.TextBox txtBoxTableName;
+        private System.Windows.Forms.Label lblStatus;
     }
 }
 
