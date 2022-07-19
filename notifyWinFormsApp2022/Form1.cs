@@ -170,6 +170,7 @@ namespace notifyWinFormsApp2022
 
                 //запись имеющихся в dataGridView данных в промежуточную таблицу
                 dt = (DataTable)dgvData.DataSource;
+                MessageBox.Show(e.Payload);
                 switch (deserializedPgTgData.operation)
                 {
                     case "INSERT":
@@ -196,9 +197,6 @@ namespace notifyWinFormsApp2022
                         {
                             dt.Rows.Remove(removedRow);
                         }
-                        break;
-                    case "TRUNCATE":
-                        dt.Clear();
                         break;
                 }
                 dgvData.DataSource = dt; //запись обновленных данных в dataGridView
@@ -288,10 +286,10 @@ namespace notifyWinFormsApp2022
                         id integer;
                     BEGIN
                         IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
-                        id = NEW.id;
-                    ELSE
-                        id = OLD.id;
-                    END IF;
+                            id = NEW.id;
+                        ELSE
+                            id = OLD.id;
+                        END IF;
                     PERFORM pg_notify(
                         'mynotification', 
                         json_build_object(
@@ -317,10 +315,11 @@ namespace notifyWinFormsApp2022
                 {
                     command.ExecuteNonQuery();
                 }
-                return false;
+                return true;
 
             }
             catch (Exception ex) {
+                MessageBox.Show(ex.Message);
                 return false;
             }
             finally {
