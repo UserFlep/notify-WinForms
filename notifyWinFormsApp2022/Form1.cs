@@ -1,4 +1,5 @@
-﻿using Npgsql;
+﻿using Newtonsoft.Json;
+using Npgsql;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -12,13 +13,10 @@ using System.Windows.Forms;
 
 namespace notifyWinFormsApp2022
 {
+    
     public partial class Form1 : Form
     {
-        private string constring;
-        private NpgsqlConnection notificationConnection;
-        private string sql;
-        private NpgsqlCommand cmd;
-        private DataTable dt;
+        private NpgsqlConnection conn;
         public Form1()
         {
             InitializeComponent();
@@ -26,140 +24,235 @@ namespace notifyWinFormsApp2022
 
         private void btnStart_Click(object sender, EventArgs e)
         {
-            /*constring = String.Format(
-                "Server={0};" +
-                "Port={1};" +
-                "User Id={2};" +
-                "Password={3};" +
-                "Database={4}",
-                txtBoxHostname.Text, 
-                txtBoxPort.Text, 
-                txtBoxUsername.Text,
-                txtBoxPassword.Text, 
-                txtBoxDBName.Text
-            );
-            conn = new NpgsqlConnection(constring);*/
-            /*try
-            {
-                conn.Open();
-                //conn.Notification += (o, e) => Console.WriteLine("Received notification");
-                
-                sql = @"select * from " + txtBoxTableName.Text;
-                cmd = new NpgsqlCommand(sql, conn);
-                var reader = cmd.ExecuteReader();
-                dt = new DataTable();
-                dt.Load(reader);
-                conn.Close();
+            this.btnStart.Enabled = false;
+            this.txtBoxHostname.Enabled = false;
+            this.txtBoxPort.Enabled = false;
+            this.txtBoxUsername.Enabled = false;
+            this.txtBoxPassword.Enabled = false;
+            this.txtBoxDBName.Enabled = false;
+            this.txtBoxTableName.Enabled = false;
 
-                dgvData.DataSource = null; //очистка
-                dgvData.DataSource = dt;
-                //while (true)
-                //{
-                 //   conn.Wait();   // Thread will block here
-                //}
-            }
-            catch (Exception ex)
+            if (this.CreateTable(this.txtBoxTableName.Text))
             {
-                conn.Close();
-                MessageBox.Show("Error:" + ex);
+                if (this.InitTriggers(this.txtBoxTableName.Text))
+                {
+                    this.StartListening();
+                    this.btnStop.Enabled = true;
+                }
+                else 
+                {
+                    this.lblStatus.ForeColor = Color.Red;
+                    this.lblStatus.Text = @"Ошибка инициализации триггеров";
+                }
             }
-            finally
+            else
             {
-                if(conn.State != ConnectionState.Closed)
-                    conn.Close();
-            }*/
-            Debug.WriteLine(@"StartListening");
-            StartListening();
+                this.lblStatus.ForeColor = Color.Red;
+                this.lblStatus.Text = @"Ошибка подключения, нет такой базы данных";
+            }
         }
-
         private void btnStop_Click(object sender, EventArgs e)
         {
-            Debug.WriteLine(@"StopListening");
-            StopListening();
-        }
+            this.StopListening();
 
+            this.txtBoxHostname.Enabled = true;
+            this.txtBoxPort.Enabled = true;
+            this.txtBoxUsername.Enabled = true;
+            this.txtBoxPassword.Enabled = true;
+            this.txtBoxDBName.Enabled = true;
+            this.txtBoxTableName.Enabled = true;
+            this.btnStart.Enabled = true;
+        }
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
-            Debug.WriteLine(@"StopListening");
-            StopListening();
+            this.StopListening();
         }
+        //Получение строки подклчения
+        private string GetConnectionString(int keepalive = 1)
+        {
+            var connStringBuilder = new NpgsqlConnectionStringBuilder
+            {
+                Host = this.txtBoxHostname.Text,
+                Port = Convert.ToInt32(this.txtBoxPort.Text),
+                Username = this.txtBoxUsername.Text,
+                Password = this.txtBoxPassword.Text,
+                Database = this.txtBoxDBName.Text,
+                KeepAlive = keepalive
+            };
 
-        //////////////Прочие функции
-
-        /// <summary>
-        /// Fires PostgresNotification() on notification event.
-        /// </summary>
+            Debug.Print(connStringBuilder.ConnectionString);
+            return connStringBuilder.ConnectionString;
+        }
+        //Запуск прослушивания
         private void StartListening()
         {
-            string connectionstring = String.Format(
-                "Server={0};" +
-                "Port={1};" +
-                "User Id={2};" +
-                "Password={3};" +
-                "Database={4}",
-                txtBoxHostname.Text,
-                txtBoxPort.Text,
-                txtBoxUsername.Text,
-                txtBoxPassword.Text,
-                txtBoxDBName.Text
-            );
-            notificationConnection = new NpgsqlConnection(connectionstring);
+            string connectionstring = string.Empty;
 
             try
             {
-                notificationConnection.Open();
+                connectionstring = this.GetConnectionString();
+                this.conn = new NpgsqlConnection(connectionstring);
+                this.conn.Open();
 
-                if ( notificationConnection.State == ConnectionState.Open)
+                if (this.conn.State == ConnectionState.Open)
                 {
-                     lblStatus.ForeColor = Color.Green;
-                     lblStatus.Text = @"Подключено";
+                    this.lblStatus.ForeColor = Color.Green;
+                    this.lblStatus.Text = "Подключено";
 
-                    using (var command = new NpgsqlCommand("listen mynotification",  notificationConnection))
+                    using (var command = new NpgsqlCommand("listen mynotification", this.conn))
                     {
                         command.ExecuteNonQuery();
                     }
+                    //Начальная инициализаци таблицы
+                    using (var command = new NpgsqlCommand(@"select * from " + this.txtBoxTableName.Text, this.conn))
+                    {
+                        var reader = command.ExecuteReader();
+                        var dt = new DataTable();
+                        dt.Load(reader);
 
-                     notificationConnection.Notification +=  PostgresNotification;
-                     btnStop.Enabled = true;
+                        dgvData.DataSource = null; //очистка
+                        dgvData.DataSource = dt;
+                    }
+
+                    this.conn.Notification += this.PostgresNotification;
+                    this.btnStop.Enabled = true;
                 }
                 else
                 {
-                    lblStatus.ForeColor = Color.Red;
-                    lblStatus.Text = @"Ошибка подключения !";
+                    this.lblStatus.ForeColor = Color.Red;
+                    this.lblStatus.Text = "Не удалось подключиться";
                 }
             }
             catch
             {
-                MessageBox.Show("Connection error: " + connectionstring);
+                MessageBox.Show("Start listening error: " + connectionstring);
             }
         }
-
+        //Отклчение прослушивания
         private void StopListening()
         {
-            lblStatus.ForeColor = Color.Red;
-            lblStatus.Text = @"Отключено";
-
-            if ( notificationConnection != null &&  notificationConnection.State != ConnectionState.Closed)
+            if (this.conn != null && this.conn.State != ConnectionState.Closed)
             {
-                 notificationConnection.Notification -=  PostgresNotification;
+                try
+                {
+                    this.conn.Notification -= this.PostgresNotification;
 
-                using (var command = new NpgsqlCommand("unlisten mynotification",  notificationConnection))
+                    using (var command = new NpgsqlCommand("unlisten mynotification", this.conn))
+                    {
+                        command.ExecuteNonQuery();
+                    }
+
+                    this.conn.Close();
+                }
+                catch (Exception ex) {
+                    MessageBox.Show("Stop listening error " + ex);
+                }
+                
+            }
+            this.lblStatus.ForeColor = Color.Red;
+            this.lblStatus.Text = "Отключено";
+        }
+        //Реакция на уведомления об изменениях
+        private void PostgresNotification(object sender, NpgsqlNotificationEventArgs e)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action<object, NpgsqlNotificationEventArgs>(this.PostgresNotification), new object[] { sender, e });
+            }
+            else
+            {
+                //Десериализация оновленных данных типа:
+                //{"operation" : "INSERT", "record" : {"id":121,"flag":false,"data":"Test data"}}
+                var deserializedPgTgData = JsonConvert.DeserializeObject<PgTgData>(e.Payload);
+
+                //Создание таблицы с обноленными данными
+                var dt = new DataTable();
+
+                //запись имеющихся в dataGridView данных в промежуточную таблицу
+                dt = (DataTable)dgvData.DataSource;
+                switch (deserializedPgTgData.operation)
+                {
+                    case "INSERT":
+                        var newRow = dt.NewRow(); //Создание новой строки
+                        newRow["id"] = deserializedPgTgData.record.id;
+                        newRow["flag"] = deserializedPgTgData.record.flag;
+                        newRow["data"] = deserializedPgTgData.record.data;
+                        dt.Rows.Add(newRow); //Добавление новой строки в таблицу
+                        break;
+                    case "UPDATE":
+                        foreach (DataRow dr in dt.Rows) // search whole table
+                        {
+                            if ((int)dr["id"] == deserializedPgTgData.record.id) // if id==2
+                            {
+                                dr["flag"] = deserializedPgTgData.record.flag;
+                                dr["data"] = deserializedPgTgData.record.data;
+                                break;
+                            }
+                        }
+                        break;
+                    case "DELETE":
+                        var removedRow = dt.Select("id=" + deserializedPgTgData.record_id).FirstOrDefault();
+                        if (removedRow != null)
+                        {
+                            dt.Rows.Remove(removedRow);
+                        }
+                        break;
+                    case "TRUNCATE":
+                        dt.Clear();
+                        break;
+                }
+                dgvData.DataSource = dt; //запись обновленных данных в dataGridView
+            }
+        }
+        //Создание таблицы при ее отсутствии
+        private bool CreateTable(string tableName)
+        {
+            try
+            {
+                string connectionString = this.GetConnectionString();
+                var conn = new NpgsqlConnection(connectionString);
+                conn.Open();
+
+                if (conn.State != ConnectionState.Open)
+                {
+                    return false;
+                }
+
+                string sql = string.Format(@"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{0}'", tableName);
+
+                if (this.ExecuteScalar(connectionString, sql))
+                {
+                    // Таблица уже существует.
+                    return true;
+                }
+
+                this.lblStatus.ForeColor = Color.Black;
+                this.lblStatus.Text = "Создана таблица " + tableName;
+
+                sql = @"CREATE TABLE XXXX
+                (
+                    id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
+                    flag boolean NOT NULL DEFAULT false,
+                    data text NOT NULL,
+                    PRIMARY KEY (id)
+                );";
+
+                sql = sql.Replace("XXXX", tableName);
+
+                using (var command = new NpgsqlCommand(sql, conn))
                 {
                     command.ExecuteNonQuery();
                 }
 
-                 notificationConnection.Close();
+                conn.Close();
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
-
-        
-
-        /// <summary>
-        /// Execute scalar command that can return a value.
-        /// </summary>
-        /// <param name="connectionString">The connection string.</param>
-        /// <param name="query">The query.</param>
-        /// <returns>True if a result was returned.</returns>
+        //Выполнение запроса на изменение данных
         private bool ExecuteScalar(string connectionString, string query)
         {
             using (var connection = new NpgsqlConnection(connectionString))
@@ -168,43 +261,87 @@ namespace notifyWinFormsApp2022
                 var command = connection.CreateCommand();
                 command.CommandText = query;
                 var result = command.ExecuteScalar();
-
+                connection.Close();
                 if (result != null && result.ToString() != "0")
                 {
                     return true;
                 }
-            }
 
+            }
             return false;
         }
-
-        /// <summary>
-        /// Initialize the triggers for UPDATE, INSERT and DELETE.
-        /// They will call FUNCTION tablename_update_notify().
-        /// </summary>
-        /// <param name="tablename">The table name.</param>
-       
-
-        /// <summary>
-        /// Postgres notification event.
-        /// </summary>
-        /// <param name="sender">The sender.</param>
-        /// <param name="e">The event arguments.</param>
-        private void PostgresNotification(object sender, NpgsqlNotificationEventArgs e)
+        //Инициализация триггеров таблицы
+        private bool InitTriggers(string tablename)
         {
-            if ( InvokeRequired)
+            this.lblStatus.ForeColor = Color.Black;
+            this.lblStatus.Text = "Инициализаци тригеров";
+
+            string connectionstring = this.GetConnectionString();
+            var conn = new NpgsqlConnection(connectionstring);
+            try
             {
-                 Invoke(new Action<object, NpgsqlNotificationEventArgs>( PostgresNotification), new object[] { sender, e });
+                conn.Open();
+                var sb = new StringBuilder();
+                sb.AppendLine(
+                    @"CREATE OR REPLACE FUNCTION XXXX_update_notify() RETURNS trigger AS $$
+                    DECLARE
+                        id integer;
+                    BEGIN
+                        IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+                        id = NEW.id;
+                    ELSE
+                        id = OLD.id;
+                    END IF;
+                    PERFORM pg_notify(
+                        'mynotification', 
+                        json_build_object(
+                            'operation', TG_OP,
+                            'record_id', id,
+                            'record', row_to_json(NEW)
+                        )::text
+                    );
+                    RETURN NEW;
+                    END;
+                    $$ LANGUAGE plpgsql;"
+                );
+                // Удаление триггеров если они уже есть
+                sb.AppendLine(@"DROP TRIGGER IF EXISTS XXXX_notify_update ON XXXX;");
+                sb.AppendLine(@"CREATE TRIGGER XXXX_notify_update AFTER UPDATE ON XXXX FOR EACH ROW EXECUTE PROCEDURE XXXX_update_notify();");
+                sb.AppendLine("DROP TRIGGER IF EXISTS XXXX_notify_insert ON XXXX;");
+                sb.AppendLine("CREATE TRIGGER XXXX_notify_insert AFTER INSERT ON XXXX FOR EACH ROW EXECUTE PROCEDURE XXXX_update_notify();");
+                sb.AppendLine("DROP TRIGGER IF EXISTS XXXX_notify_delete ON XXXX;");
+                sb.AppendLine("CREATE TRIGGER XXXX_notify_delete AFTER DELETE ON XXXX FOR EACH ROW EXECUTE PROCEDURE XXXX_update_notify();");
+                string sqlTrigger = sb.ToString().Replace("XXXX", tablename);
+
+                using (var command = new NpgsqlCommand(sqlTrigger, conn))
+                {
+                    command.ExecuteNonQuery();
+                }
+                return false;
+
             }
-            else
-            {
-                Debug.WriteLine(@"Notification -->");
-                Debug.WriteLine(@"  DATA {0}", e.Payload);
-                Debug.WriteLine(@"  CHANNEL {0}", e.Channel);
-                Debug.WriteLine(@"  PID {0}", e.PID);
+            catch (Exception ex) {
+                return false;
+            }
+            finally {
+                conn.Close();
             }
         }
-
-        
     }
+
+    ////Для десериализации тригеров//////////////////////////////////
+    public class Record
+    {
+        public int id { get; set; }
+        public bool flag { get; set; }
+        public string data { get; set; }
+    }
+
+    public class PgTgData
+    {
+        public string operation { get; set; }
+        public int record_id { get; set; }
+        public Record record { get; set; }
+    }
+    /////////////////////////////////////////////////////////////////// 
 }
