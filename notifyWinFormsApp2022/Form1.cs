@@ -42,13 +42,13 @@ namespace notifyWinFormsApp2022
                 else 
                 {
                     this.lblStatus.ForeColor = Color.Red;
-                    this.lblStatus.Text = @"Ошибка инициализации триггеров";
+                    this.lblStatus.Text = "Ошибка инициализации триггеров";
                 }
             }
             else
             {
                 this.lblStatus.ForeColor = Color.Red;
-                this.lblStatus.Text = @"Ошибка подключения, нет такой базы данных";
+                this.lblStatus.Text = "Ошибка подключенияя\n введены не верные данные";
             }
         }
         private void btnStop_Click(object sender, EventArgs e)
@@ -99,12 +99,12 @@ namespace notifyWinFormsApp2022
                     this.lblStatus.ForeColor = Color.Green;
                     this.lblStatus.Text = "Подключено";
 
-                    using (var command = new NpgsqlCommand("listen mynotification", this.conn))
+                    using (var command = new NpgsqlCommand("LISTEN mynotification", this.conn))
                     {
                         command.ExecuteNonQuery();
                     }
                     //Начальная инициализаци таблицы
-                    using (var command = new NpgsqlCommand(@"select * from " + this.txtBoxTableName.Text, this.conn))
+                    using (var command = new NpgsqlCommand(@"SELECT * FROM " + this.txtBoxTableName.Text, this.conn))
                     {
                         var reader = command.ExecuteReader();
                         var dt = new DataTable();
@@ -125,7 +125,7 @@ namespace notifyWinFormsApp2022
             }
             catch
             {
-                MessageBox.Show("Start listening error: " + connectionstring);
+                MessageBox.Show("StartListening error: " + connectionstring);
             }
         }
         //Отклчение прослушивания
@@ -137,7 +137,7 @@ namespace notifyWinFormsApp2022
                 {
                     this.conn.Notification -= this.PostgresNotification;
 
-                    using (var command = new NpgsqlCommand("unlisten mynotification", this.conn))
+                    using (var command = new NpgsqlCommand("UNLISTEN mynotification", this.conn))
                     {
                         command.ExecuteNonQuery();
                     }
@@ -145,7 +145,7 @@ namespace notifyWinFormsApp2022
                     this.conn.Close();
                 }
                 catch (Exception ex) {
-                    MessageBox.Show("Stop listening error " + ex);
+                    MessageBox.Show("StopListening error " + ex);
                 }
                 
             }
@@ -161,6 +161,9 @@ namespace notifyWinFormsApp2022
             }
             else
             {
+                const string id = "id";
+                const string flag = "flag";
+                const string data = "data";
                 //Десериализация оновленных данных типа:
                 //{"operation" : "INSERT", "record" : {"id":121,"flag":false,"data":"Test data"}}
                 var deserializedPgTgData = JsonConvert.DeserializeObject<PgTgData>(e.Payload);
@@ -170,23 +173,22 @@ namespace notifyWinFormsApp2022
 
                 //запись имеющихся в dataGridView данных в промежуточную таблицу
                 dt = (DataTable)dgvData.DataSource;
-                MessageBox.Show(e.Payload);
                 switch (deserializedPgTgData.operation)
                 {
                     case "INSERT":
                         var newRow = dt.NewRow(); //Создание новой строки
-                        newRow["id"] = deserializedPgTgData.record.id;
-                        newRow["flag"] = deserializedPgTgData.record.flag;
-                        newRow["data"] = deserializedPgTgData.record.data;
+                        newRow[id] = deserializedPgTgData.record.id;
+                        newRow[flag] = deserializedPgTgData.record.flag;
+                        newRow[data] = deserializedPgTgData.record.data;
                         dt.Rows.Add(newRow); //Добавление новой строки в таблицу
                         break;
                     case "UPDATE":
-                        foreach (DataRow dr in dt.Rows) // search whole table
+                        foreach (DataRow dr in dt.Rows)
                         {
-                            if ((int)dr["id"] == deserializedPgTgData.record.id) // if id==2
+                            if ((int)dr[id] == deserializedPgTgData.record.id) // if id==2
                             {
-                                dr["flag"] = deserializedPgTgData.record.flag;
-                                dr["data"] = deserializedPgTgData.record.data;
+                                dr[flag] = deserializedPgTgData.record.flag;
+                                dr[data] = deserializedPgTgData.record.data;
                                 break;
                             }
                         }
