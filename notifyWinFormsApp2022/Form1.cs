@@ -16,7 +16,8 @@ namespace notifyWinFormsApp2022
     
     public partial class Form1 : Form
     {
-        private NpgsqlConnection conn;
+        private NpgsqlConnection conn = null;
+        
         public Form1()
         {
             InitializeComponent();
@@ -48,7 +49,7 @@ namespace notifyWinFormsApp2022
             else
             {
                 this.lblStatus.ForeColor = Color.Red;
-                this.lblStatus.Text = "Ошибка подключенияя\n введены не верные данные";
+                this.lblStatus.Text = "Ошибка подключения";
             }
         }
         private void btnStop_Click(object sender, EventArgs e)
@@ -66,7 +67,8 @@ namespace notifyWinFormsApp2022
         }
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
-            this.StopListening();
+            if(this.conn != null && this.conn.State != ConnectionState.Closed)
+                this.StopListening();
         }
         //Получение строки подклчения
         private string GetConnectionString(int keepalive = 1)
@@ -124,9 +126,9 @@ namespace notifyWinFormsApp2022
                     this.lblStatus.Text = "Не удалось подключиться";
                 }
             }
-            catch
+            catch(Exception ex)
             {
-                MessageBox.Show("StartListening error: " + connectionstring);
+                MessageBox.Show("StartListening error: " + ex);
             }
         }
         //Отклчение прослушивания
