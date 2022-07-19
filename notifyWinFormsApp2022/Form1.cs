@@ -62,6 +62,7 @@ namespace notifyWinFormsApp2022
             this.txtBoxDBName.Enabled = true;
             this.txtBoxTableName.Enabled = true;
             this.btnStart.Enabled = true;
+            this.btnStop.Enabled = false;
         }
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
