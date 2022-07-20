@@ -249,7 +249,6 @@ namespace notifyWinFormsApp2022
         private System.Windows.Forms.TextBox txtBoxPassword;
         private System.Windows.Forms.Label lblHostname;
         private System.Windows.Forms.Label lblPort;
-        private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label lblPassword;
         private System.Windows.Forms.Label lblUsername;
         private System.Windows.Forms.Button btnStart;

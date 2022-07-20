@@ -17,7 +17,6 @@ namespace notifyWinFormsApp2022
     public partial class Form1 : Form
     {
         private NpgsqlConnection conn = null;
-        BackgroundWorker worker = null;
         public Form1()
         {
             InitializeComponent();
@@ -67,7 +66,6 @@ namespace notifyWinFormsApp2022
                 KeepAlive = keepalive
             };
 
-            Debug.Print(connStringBuilder.ConnectionString);
             return connStringBuilder.ConnectionString;
         }
         //Запуск прослушивания
@@ -162,12 +160,6 @@ namespace notifyWinFormsApp2022
         //Реакция на уведомления об изменениях
         private void PostgresNotification(object sender, NpgsqlNotificationEventArgs e)
         {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action<object, NpgsqlNotificationEventArgs>(this.PostgresNotification), new object[] { sender, e });
-            }
-            else
-            {
                 const string id = "id";
                 const string flag = "flag";
                 const string data = "data";
@@ -209,7 +201,7 @@ namespace notifyWinFormsApp2022
                         break;
                 }
                 dgvData.DataSource = dt; //запись обновленных данных в dataGridView
-            }
+            
         }
         //Создание таблицы при ее отсутствии
         private bool CreateTable(string tableName)
