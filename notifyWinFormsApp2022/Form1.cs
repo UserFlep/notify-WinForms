@@ -16,13 +16,13 @@ namespace notifyWinFormsApp2022
     
     public partial class Form1 : Form
     {
-        private NpgsqlConnection conn;
+        private NpgsqlConnection conn = null;
         public Form1()
         {
             InitializeComponent();
         }
 
-        async private void btnStart_Click(object sender, EventArgs e)
+        private void btnStart_Click(object sender, EventArgs e)
         {
             this.btnStart.Enabled = false;
             this.txtBoxHostname.Enabled = false;
@@ -31,28 +31,12 @@ namespace notifyWinFormsApp2022
             this.txtBoxPassword.Enabled = false;
             this.txtBoxDBName.Enabled = false;
             this.txtBoxTableName.Enabled = false;
-            
-            if (await this.CreateTable(this.txtBoxTableName.Text))
-            {
-                if (await this.InitTriggers(this.txtBoxTableName.Text))
-                {
-                    this.StartListening();
-                    this.btnStop.Enabled = true;
-                }
-                else 
-                {
-                    this.lblStatus.ForeColor = Color.Red;
-                    this.lblStatus.Text = "Ошибка инициализации триггеров";
-                }
-            }
-            else
-            {
-                this.lblStatus.ForeColor = Color.Red;
-                this.lblStatus.Text = "Ошибка подключения";
-            }
+
+            this.StartListening();
         }
         private void btnStop_Click(object sender, EventArgs e)
         {
+            this.btnStop.Enabled = false;
             this.StopListening();
 
             this.txtBoxHostname.Enabled = true;
@@ -62,11 +46,12 @@ namespace notifyWinFormsApp2022
             this.txtBoxDBName.Enabled = true;
             this.txtBoxTableName.Enabled = true;
             this.btnStart.Enabled = true;
-            this.btnStop.Enabled = false;
+            
         }
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
-            this.StopListening();
+            if(this.conn != null && this.conn.State != ConnectionState.Closed)
+                this.StopListening();
         }
         //Получение строки подклчения
         private string GetConnectionString(int keepalive = 1)
@@ -81,56 +66,75 @@ namespace notifyWinFormsApp2022
                 KeepAlive = keepalive
             };
 
-            Debug.Print(connStringBuilder.ConnectionString);
             return connStringBuilder.ConnectionString;
         }
         //Запуск прослушивания
-        async private void StartListening()
+        private void StartListening()
         {
             string connectionstring = string.Empty;
 
-            try
+            if (this.CreateTable(this.txtBoxTableName.Text))
             {
-                connectionstring = this.GetConnectionString();
-                this.conn = new NpgsqlConnection(connectionstring);
-                await this.conn.OpenAsync();
-
-                if (this.conn.State == ConnectionState.Open)
+                if (this.InitTriggers(this.txtBoxTableName.Text))
                 {
-                    this.lblStatus.ForeColor = Color.Green;
-                    this.lblStatus.Text = "Подключено";
-
-                    using (var command = new NpgsqlCommand("LISTEN mynotification", this.conn))
+                    try
                     {
-                        await command.ExecuteNonQueryAsync();
+                        connectionstring = this.GetConnectionString();
+                        this.conn = new NpgsqlConnection(connectionstring);
+                        this.conn.Open();
+
+                        if (this.conn.State == ConnectionState.Open)
+                        {
+                            this.lblStatus.ForeColor = Color.Green;
+                            this.lblStatus.Text = "Подключено";
+
+                            using (var command = new NpgsqlCommand("LISTEN mynotification", this.conn))
+                            {
+                                command.ExecuteNonQuery();
+                            }
+                            //Начальная инициализаци таблицы
+                            using (var command = new NpgsqlCommand(@"SELECT * FROM " + this.txtBoxTableName.Text, this.conn))
+                            {
+                                var reader = command.ExecuteReader();
+                                var dt = new DataTable();
+                                dt.Load(reader);
+
+                                dgvData.DataSource = null; //очистка
+                                dgvData.DataSource = dt;
+                            }
+
+                            this.conn.Notification += this.PostgresNotification;
+                            this.btnStop.Enabled = true;
+                        }
+                        else
+                        {
+                            this.lblStatus.ForeColor = Color.Red;
+                            this.lblStatus.Text = "Не удалось подключиться";
+                        }
                     }
-                    //Начальная инициализаци таблицы
-                    using (var command = new NpgsqlCommand(@"SELECT * FROM " + this.txtBoxTableName.Text, this.conn))
+                    catch (Exception ex)
                     {
-                        var reader = await command.ExecuteReaderAsync();
-                        var dt = new DataTable();
-                        dt.Load(reader);
-
-                        dgvData.DataSource = null; //очистка
-                        dgvData.DataSource = dt;
+                        MessageBox.Show("StartListening error: " + ex);
                     }
 
-                    this.conn.Notification += this.PostgresNotification;
                     this.btnStop.Enabled = true;
                 }
                 else
                 {
                     this.lblStatus.ForeColor = Color.Red;
-                    this.lblStatus.Text = "Не удалось подключиться";
+                    this.lblStatus.Text = "Ошибка инициализации триггеров";
                 }
             }
-            catch
+            else
             {
-                MessageBox.Show("StartListening error: " + connectionstring);
+                this.lblStatus.ForeColor = Color.Red;
+                this.lblStatus.Text = "Ошибка подключения";
             }
+
+            
         }
         //Отклчение прослушивания
-        async private void StopListening()
+        private void StopListening()
         {
             if (this.conn != null && this.conn.State != ConnectionState.Closed)
             {
@@ -140,10 +144,10 @@ namespace notifyWinFormsApp2022
 
                     using (var command = new NpgsqlCommand("UNLISTEN mynotification", this.conn))
                     {
-                        await command.ExecuteNonQueryAsync();
+                        command.ExecuteNonQuery();
                     }
 
-                    await this.conn.CloseAsync();
+                    this.conn.Close();
                 }
                 catch (Exception ex) {
                     MessageBox.Show("StopListening error " + ex);
@@ -156,12 +160,6 @@ namespace notifyWinFormsApp2022
         //Реакция на уведомления об изменениях
         private void PostgresNotification(object sender, NpgsqlNotificationEventArgs e)
         {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action<object, NpgsqlNotificationEventArgs>(this.PostgresNotification), new object[] { sender, e });
-            }
-            else
-            {
                 const string id = "id";
                 const string flag = "flag";
                 const string data = "data";
@@ -203,16 +201,16 @@ namespace notifyWinFormsApp2022
                         break;
                 }
                 dgvData.DataSource = dt; //запись обновленных данных в dataGridView
-            }
+            
         }
         //Создание таблицы при ее отсутствии
-       async private Task<bool> CreateTable(string tableName)
+        private bool CreateTable(string tableName)
         {
             try
             {
                 string connectionString = this.GetConnectionString();
                 var conn = new NpgsqlConnection(connectionString);
-                await conn.OpenAsync();
+                conn.Open();
 
                 if (conn.State != ConnectionState.Open)
                 {
@@ -221,7 +219,7 @@ namespace notifyWinFormsApp2022
 
                 string sql = string.Format(@"SELECT COUNT(*) FROM information_schema.tables WHERE table_name = '{0}'", tableName);
 
-                if (await this.ExecuteScalar(connectionString, sql))
+                if (this.ExecuteScalar(connectionString, sql))
                 {
                     // Таблица уже существует.
                     return true;
@@ -242,10 +240,10 @@ namespace notifyWinFormsApp2022
 
                 using (var command = new NpgsqlCommand(sql, conn))
                 {
-                    await command.ExecuteNonQueryAsync();
+                    command.ExecuteNonQuery();
                 }
 
-                await conn.CloseAsync();
+                conn.Close();
                 return true;
             }
             catch
@@ -254,15 +252,15 @@ namespace notifyWinFormsApp2022
             }
         }
         //Выполнение запроса на изменение данных
-        async private Task<bool> ExecuteScalar(string connectionString, string query)
+        private bool ExecuteScalar(string connectionString, string query)
         {
-            using (var conn = new NpgsqlConnection(connectionString))
+            using (var connection = new NpgsqlConnection(connectionString))
             {
-                await conn.OpenAsync();
-                var command = conn.CreateCommand();
+                connection.Open();
+                var command = connection.CreateCommand();
                 command.CommandText = query;
                 var result = command.ExecuteScalar();
-                await conn.CloseAsync();
+                connection.Close();
                 if (result != null && result.ToString() != "0")
                 {
                     return true;
@@ -272,7 +270,7 @@ namespace notifyWinFormsApp2022
             return false;
         }
         //Инициализация триггеров таблицы
-        async private Task<bool> InitTriggers(string tablename)
+        private bool InitTriggers(string tablename)
         {
             this.lblStatus.ForeColor = Color.Black;
             this.lblStatus.Text = "Инициализаци тригеров";
@@ -281,7 +279,7 @@ namespace notifyWinFormsApp2022
             var conn = new NpgsqlConnection(connectionstring);
             try
             {
-                await conn.OpenAsync();
+                conn.Open();
                 var sb = new StringBuilder();
                 sb.AppendLine(
                     @"CREATE OR REPLACE FUNCTION XXXX_update_notify() RETURNS trigger AS $$
@@ -316,7 +314,7 @@ namespace notifyWinFormsApp2022
 
                 using (var command = new NpgsqlCommand(sqlTrigger, conn))
                 {
-                    await command.ExecuteNonQueryAsync();
+                    command.ExecuteNonQuery();
                 }
                 return true;
 
@@ -326,7 +324,7 @@ namespace notifyWinFormsApp2022
                 return false;
             }
             finally {
-                await conn.CloseAsync();
+                conn.Close();
             }
         }
     }
