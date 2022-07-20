@@ -17,7 +17,7 @@ namespace notifyWinFormsApp2022
     public partial class Form1 : Form
     {
         private NpgsqlConnection conn = null;
-        
+        BackgroundWorker worker = null;
         public Form1()
         {
             InitializeComponent();
@@ -33,27 +33,11 @@ namespace notifyWinFormsApp2022
             this.txtBoxDBName.Enabled = false;
             this.txtBoxTableName.Enabled = false;
 
-            if (this.CreateTable(this.txtBoxTableName.Text))
-            {
-                if (this.InitTriggers(this.txtBoxTableName.Text))
-                {
-                    this.StartListening();
-                    this.btnStop.Enabled = true;
-                }
-                else 
-                {
-                    this.lblStatus.ForeColor = Color.Red;
-                    this.lblStatus.Text = "Ошибка инициализации триггеров";
-                }
-            }
-            else
-            {
-                this.lblStatus.ForeColor = Color.Red;
-                this.lblStatus.Text = "Ошибка подключения";
-            }
+            this.StartListening();
         }
         private void btnStop_Click(object sender, EventArgs e)
         {
+            this.btnStop.Enabled = false;
             this.StopListening();
 
             this.txtBoxHostname.Enabled = true;
@@ -63,7 +47,7 @@ namespace notifyWinFormsApp2022
             this.txtBoxDBName.Enabled = true;
             this.txtBoxTableName.Enabled = true;
             this.btnStart.Enabled = true;
-            this.btnStop.Enabled = false;
+            
         }
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
@@ -91,45 +75,65 @@ namespace notifyWinFormsApp2022
         {
             string connectionstring = string.Empty;
 
-            try
+            if (this.CreateTable(this.txtBoxTableName.Text))
             {
-                connectionstring = this.GetConnectionString();
-                this.conn = new NpgsqlConnection(connectionstring);
-                this.conn.Open();
-
-                if (this.conn.State == ConnectionState.Open)
+                if (this.InitTriggers(this.txtBoxTableName.Text))
                 {
-                    this.lblStatus.ForeColor = Color.Green;
-                    this.lblStatus.Text = "Подключено";
-
-                    using (var command = new NpgsqlCommand("LISTEN mynotification", this.conn))
+                    try
                     {
-                        command.ExecuteNonQuery();
+                        connectionstring = this.GetConnectionString();
+                        this.conn = new NpgsqlConnection(connectionstring);
+                        this.conn.Open();
+
+                        if (this.conn.State == ConnectionState.Open)
+                        {
+                            this.lblStatus.ForeColor = Color.Green;
+                            this.lblStatus.Text = "Подключено";
+
+                            using (var command = new NpgsqlCommand("LISTEN mynotification", this.conn))
+                            {
+                                command.ExecuteNonQuery();
+                            }
+                            //Начальная инициализаци таблицы
+                            using (var command = new NpgsqlCommand(@"SELECT * FROM " + this.txtBoxTableName.Text, this.conn))
+                            {
+                                var reader = command.ExecuteReader();
+                                var dt = new DataTable();
+                                dt.Load(reader);
+
+                                dgvData.DataSource = null; //очистка
+                                dgvData.DataSource = dt;
+                            }
+
+                            this.conn.Notification += this.PostgresNotification;
+                            this.btnStop.Enabled = true;
+                        }
+                        else
+                        {
+                            this.lblStatus.ForeColor = Color.Red;
+                            this.lblStatus.Text = "Не удалось подключиться";
+                        }
                     }
-                    //Начальная инициализаци таблицы
-                    using (var command = new NpgsqlCommand(@"SELECT * FROM " + this.txtBoxTableName.Text, this.conn))
+                    catch (Exception ex)
                     {
-                        var reader = command.ExecuteReader();
-                        var dt = new DataTable();
-                        dt.Load(reader);
-
-                        dgvData.DataSource = null; //очистка
-                        dgvData.DataSource = dt;
+                        MessageBox.Show("StartListening error: " + ex);
                     }
 
-                    this.conn.Notification += this.PostgresNotification;
                     this.btnStop.Enabled = true;
                 }
                 else
                 {
                     this.lblStatus.ForeColor = Color.Red;
-                    this.lblStatus.Text = "Не удалось подключиться";
+                    this.lblStatus.Text = "Ошибка инициализации триггеров";
                 }
             }
-            catch(Exception ex)
+            else
             {
-                MessageBox.Show("StartListening error: " + ex);
+                this.lblStatus.ForeColor = Color.Red;
+                this.lblStatus.Text = "Ошибка подключения";
             }
+
+            
         }
         //Отклчение прослушивания
         private void StopListening()
